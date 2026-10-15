@@ -20,6 +20,28 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # 根包 main.go 用 `//go:embed all:frontend/dist` 内嵌前端产物，而
+      # frontend/dist 是前端构建的产物、不入库。CI 只检查 Go 侧、不构建前端，
+      # 因此这里补一个占位文件让 embed pattern 能解析 —— 否则 `go vet .` 会以
+      #   pattern all:frontend/dist: no matching files found
+      # 直接失败。注意目录空着也不行：embed 匹配不到任何文件同样算失败。
+      - name: 准备前端 embed 占位
+        run: |
+          mkdir -p frontend/dist
+          if [ ! -f frontend/dist/index.html ]; then
+            printf '%s\n' '<!doctype html><title>placeholder</title>' > frontend/dist/index.html
+          fi
+
+      # internal/app 依赖 Wails v3，而 Wails 的 Linux 实现带 cgo
+      # （//go:build linux && cgo，见 pkg/application/linux_cgo.go 里的
+      # `#cgo linux pkg-config: gtk4 webkitgtk-6.0`）。ubuntu-latest 不预装这两个
+      # dev 包，缺了会在编译 internal/app 时失败，而 vet/build/test 三个步骤都会
+      # 编译到它。版本与 release.yml 的构建作业保持一致。
+      - name: 安装 Linux 构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
       # 代码风格：gofmt 有输出就说明有文件未格式化。
       - name: gofmt
         run: |

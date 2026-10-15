@@ -40,6 +40,22 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # 与 ci.yml 相同的两件前置：embed 占位 + Linux cgo 依赖。
+      # 这里的 verify 不构建前端，但根包 main.go 的
+      # `//go:embed all:frontend/dist` 在解析阶段就要求该目录有文件。
+      - name: 准备前端 embed 占位
+        run: |
+          mkdir -p frontend/dist
+          if [ ! -f frontend/dist/index.html ]; then
+            printf '%s\n' '<!doctype html><title>placeholder</title>' > frontend/dist/index.html
+          fi
+
+      # internal/app → Wails v3 的 Linux 实现要求 cgo + gtk4/webkitgtk-6.0。
+      - name: 安装 Linux 构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: gofmt
         run: |
           unformatted=$(gofmt -l internal cmd main.go)

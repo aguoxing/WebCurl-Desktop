@@ -89,6 +89,14 @@ tasks:
       Use `task build` (+ `task build:updater`) for real binaries and this task
       for CI / pre-commit.
     cmds:
+      # 根包 main.go 用 `//go:embed all:frontend/dist` 内嵌前端产物，而
+      # frontend/dist 是构建产物、不入库。verify 刻意不构建前端，所以这里先补
+      # 一个占位文件让 embed pattern 能解析，否则新 clone 的仓库一跑就报
+      #   pattern all:frontend/dist: no matching files found
+      # 只在类 Unix 平台代劳：Windows 上 Task 用哪个 shell 由环境决定（cmd 与
+      # sh 语法不通用），那边手动 `pnpm build` 或建一个 frontend/dist/index.html。
+      - cmd: "mkdir -p frontend/dist && touch frontend/dist/index.html"
+        platforms: [linux, darwin]
       - go vet ./internal/... ./cmd/... .
       - go build ./internal/... ./cmd/...
       - go test ./internal/... ./cmd/...
