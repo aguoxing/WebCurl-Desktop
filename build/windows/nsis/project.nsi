@@ -93,6 +93,16 @@ Section
     
     !insertmacro wails.files
 
+    # 更新助手必须与主程序**同目录**：应用内更新在交接那一步会去那里找它
+    # （internal/updater/apply.go 的 helperBinaryName），缺了就报
+    # "update helper not found" 并中止更新。
+    #
+    # 反过来，升级包里**不能**带它：替换一个正在运行的助手会失败，
+    # 所以 release 的 zip 只有主程序，助手只随安装包分发。
+    #
+    # 路径写法与上面的 OutFile 一致，相对于本脚本所在目录。
+    File "/oname=updater.exe" "..\..\..\bin\updater.exe"
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
