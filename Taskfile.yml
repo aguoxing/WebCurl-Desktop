@@ -1,0 +1,119 @@
+version: '3'
+
+vars:
+  APP_NAME: "webcurl-desktop"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "pnpm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+
+  # 构建时注入的版本信息（-ldflags -X），唯一来源是 cmd/versionldflags：
+  # 显式指定的 GOWS_VERSION 优先，否则取 git describe。拿不到版本时为空串，
+  # 二进制便显示为 dev。这样一来版本号属于二进制本身，不再依赖
+  # configs/config.yaml —— 用户改配置不会让"当前版本"漂移。
+  #
+  # 命令必须是 Windows(cmd) 与 Unix(sh) 都认得的调用，因此只写 `go run ...`。
+  # 早先这里是 `sh scripts/version-ldflags.sh`：Task 在 Windows 上用 cmd 执行，
+  # 找不到 sh 可执行文件，直接以 `"sh": executable file not found in $PATH` 失败；
+  # 而它作为全局变量会在所有 task 之前求值，连不需要版本注入的 `wails3 dev` 也躲不过。
+  VERSION_LDFLAGS:
+    sh: go run ./cmd/versionldflags
+
+includes:
+  common:
+    taskfile: ./build/Taskfile.yml
+    vars:
+      VERSION_LDFLAGS: '{{.VERSION_LDFLAGS}}'
+  windows:
+    taskfile: ./build/windows/Taskfile.yml
+    vars:
+      VERSION_LDFLAGS: '{{.VERSION_LDFLAGS}}'
+  darwin:
+    taskfile: ./build/darwin/Taskfile.yml
+    vars:
+      VERSION_LDFLAGS: '{{.VERSION_LDFLAGS}}'
+  linux:
+    taskfile: ./build/linux/Taskfile.yml
+    vars:
+      VERSION_LDFLAGS: '{{.VERSION_LDFLAGS}}'
+  ios:
+    taskfile: ./build/ios/Taskfile.yml
+    vars:
+      VERSION_LDFLAGS: '{{.VERSION_LDFLAGS}}'
+  android:
+    taskfile: ./build/android/Taskfile.yml
+    vars:
+      VERSION_LDFLAGS: '{{.VERSION_LDFLAGS}}'
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: "{{OS}}:build"
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: "{{OS}}:package"
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: "{{OS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  build:updater:
+    summary: Builds the update helper into bin/, next to the app binary
+    desc: |
+      主程序无法覆盖正在运行的自身二进制，替换动作由这个独立的助手程序完成。
+      它必须与主程序位于同一目录，所以 `task build` 之后要把它一起带走
+      （安装器打包、或手工复制到安装目录）。
+
+      这里刻意**不**注入版本：助手程序零内部依赖（要能独立交叉编译、并在主程序
+      退出后独立运行），因此 -X 的目标符号根本不会被链接进来，注入了也是空转。
+    cmds:
+      - go build -o {{.BIN_DIR}}/updater{{exeExt}} ./cmd/updater
+
+  verify:
+    summary: Type-checks, builds and tests the Go code without the Wails toolchain
+    desc: |
+      Root package scope matters here:
+      * `go build .` alone fails on Windows — the Wails toolchain generates
+        wails_<os>_<arch>.syso into the repo root, links with it, then deletes it.
+        The root package is type-checked by `go vet .` instead.
+      * `go build ./...` always fails: build/ios ships a `package main` without
+        func main (a template asset consumed through the iOS build overlay).
+      Use `task build` (+ `task build:updater`) for real binaries and this task
+      for CI / pre-commit.
+    cmds:
+      - go vet ./internal/... ./cmd/... .
+      - go build ./internal/... ./cmd/...
+      - go test ./internal/... ./cmd/...
+
+  setup:docker:
+    summary: Builds Docker image for cross-compilation (~800MB download)
+    cmds:
+      - task: common:setup:docker
+
+  build:server:
+    summary: Builds the application in server mode (no GUI, HTTP server only)
+    cmds:
+      - task: common:build:server
+
+  run:server:
+    summary: Runs the application in server mode
+    cmds:
+      - task: common:run:server
+
+  build:docker:
+    summary: Builds a Docker image for server mode deployment
+    cmds:
+      - task: common:build:docker
+
+  run:docker:
+    summary: Builds and runs the Docker image
+    cmds:
+      - task: common:run:docker

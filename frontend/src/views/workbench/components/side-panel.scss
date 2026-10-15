@@ -1,0 +1,165 @@
+/* 左侧栏（集合 / 历史）的共用外观。
+ *
+ * 两份面板的骨架完全一致：工具条 + 可滚动列表 + 底栏。抽出来是为了保证
+ * 切换「集合 / 历史」时，列表的起始位置与行高不变——否则切换一次，
+ * 眼睛要重新定位。 */
+
+.side-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background-color: var(--chrome-bgc);
+}
+
+.side-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.side-toolbar :deep(.el-input) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.side-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.side-foot {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  align-items: center;
+  padding: 3px 8px;
+  border-top: 1px solid var(--chrome-border);
+}
+
+.side-empty {
+  padding: 24px 16px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-color-secondary);
+  text-align: center;
+}
+
+.side-empty-sub {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+/* --- 集合 --- */
+
+.collection-head,
+.item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.collection-head:hover,
+.item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.collection-head {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.collection-icon {
+  flex: 0 0 auto;
+  color: var(--text-color-secondary);
+}
+
+.collection-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-count {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  background-color: var(--el-fill-color);
+  border-radius: 8px;
+}
+
+.collection-items {
+  padding: 2px 0 6px;
+}
+
+.collection-empty {
+  padding: 4px 8px 4px 28px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.item {
+  padding-left: 26px;
+  color: var(--text-color);
+}
+
+.item-method {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  border-radius: 3px;
+}
+
+.item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 行内操作按钮平时隐藏，悬停才出现：列表本身的信息密度已经很高，
+   常驻两个图标会让每一行看起来都很吵。 */
+.row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.collection-head:hover .row-actions,
+.item:hover .row-actions {
+  opacity: 1;
+}
+
+.row-action {
+  padding: 2px;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+  border-radius: 3px;
+}
+
+.row-action:hover {
+  color: var(--el-color-primary);
+  background-color: var(--el-fill-color);
+}
+
+.row-action.is-danger:hover {
+  color: var(--el-color-danger);
+}

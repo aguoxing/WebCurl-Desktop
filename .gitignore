@@ -1,0 +1,50 @@
+# Build output
+bin/
+release/
+logs/
+# Wails 会在仓库根临时生成 wails_<os>_<arch>.syso、链接后自行删除；
+# 构建中途被打断时会残留，别让它被误提交。
+*.syso
+
+# Windows 版本资源由 cmd/wininfo 从 build/windows/info.json 派生（版本号来自
+# git / $GOWS_VERSION）。生成物必须忽略：改写被跟踪的文件会把工作区弄脏，
+# 而构建流程用 git status 判断脏标记，那样每次构建都会把下一次构建标成 dirty。
+build/windows/info.generated.json
+
+# Runtime config (may hold credentials); configs/config.example.yaml is tracked
+configs/config.yaml
+configs/*.local.yaml
+
+# Frontend
+frontend/dist/
+frontend/node_modules/
+
+# Task
+.task/
+
+# WorkBuddy 工作数据（项目记忆与工作日志）：属本机工具态，含本机绝对路径，不入库
+.workbuddy/
+
+# 本地设计文档（架构 / 配置 / 开发 / 更新）：只服务本机开发，对外一律以 README.md 为准
+docs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Binary
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.out

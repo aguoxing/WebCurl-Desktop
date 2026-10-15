@@ -1,0 +1,30 @@
+# 统一换行符。
+#
+# 这不是洁癖：仓库里有几个要跑到类 Unix 上的 shell 脚本（scripts/build.sh、
+# build/ios/build.sh、build/linux/nfpm/scripts/*.sh）。Windows 上 core.autocrlf=true
+# 会把它们检出成 CRLF，一旦这样被提交，在 Linux/macOS 上执行就会以
+# "bad interpreter: /bin/bash^M" 直接失败 —— 而发布流水线正好跑在这两个平台上。
+* text=auto eol=lf
+
+# 显式钉住：这些在任何平台上都必须是 LF。
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.go   text eol=lf
+*.ts   text eol=lf
+*.vue  text eol=lf
+
+# 二进制资源一律不做换行符转换（Assets.car 是 1.5 MB 的编译产物，
+# 转换会直接损坏它，且每次检出都显示为「已修改」）。
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.icns  binary
+*.car   binary
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.zip   binary

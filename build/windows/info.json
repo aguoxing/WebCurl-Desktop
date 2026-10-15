@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "1.0.1.0"
+	},
+	"info": {
+		"0000": {
+			"ProductVersion": "1.0.1.0",
+			"CompanyName": "aguoxing",
+			"FileDescription": "WebCurl Desktop - an API debugging and mock workbench",
+			"LegalCopyright": "(c) 2026 aguoxing",
+			"ProductName": "WebCurl",
+			"Comments": "https://github.com/aguoxing/webcurl-desktop"
+		}
+	}
+}

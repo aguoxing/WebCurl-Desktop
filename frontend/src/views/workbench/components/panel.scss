@@ -1,0 +1,112 @@
+/* 请求配置区各面板（Params / Headers / Cookies / Body / Auth / Options）的共用骨架。
+ *
+ * 抽成一份 @use 而不是每个组件复制一遍：这些面板的职责就是"填表单"，
+ * 它们的边距、底栏高度、提示文字样式必须完全一致，否则切换标签时
+ * 内容会整体跳一下——那种抖动比样式本身更容易被注意到。 */
+
+.panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px 12px;
+  overflow: auto;
+}
+
+/* 底栏固定高度：内容多少都不变，避免切换面板时下面的响应区分隔条上下跳。 */
+.panel-foot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 30px;
+  padding: 0 12px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.foot-left {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.count {
+  margin-left: 8px;
+  color: var(--text-color-secondary);
+}
+
+/* 右侧的 URL 预览会很长，因此允许收缩并省略号截断，完整值放到 title 里。 */
+.preview {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-label {
+  flex: 0 0 auto;
+  color: var(--text-color-secondary);
+}
+
+.preview-url {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  color: var(--text-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 620px;
+  margin-bottom: 12px;
+}
+
+.field-label {
+  flex: 0 0 84px;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+}
+
+.field-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field-tip {
+  margin: -6px 0 14px 94px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-color-secondary);
+}
+
+.section-title {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+}
+
+.section + .section {
+  margin-top: 16px;
+}

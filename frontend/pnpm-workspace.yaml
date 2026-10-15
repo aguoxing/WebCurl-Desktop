@@ -1,0 +1,5 @@
+allowBuilds:
+  '@parcel/watcher': false
+  core-js: false
+minimumReleaseAgeExclude:
+  - '@iconify/json@2.2.489'

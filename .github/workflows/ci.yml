@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# 这里刻意不调用 `task verify`：CI 里没有安装 Task CLI，
+# 直接把同一条命令列出来更省事，也更容易看懂失败在哪一步。
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # 以 go.mod 中声明的版本为准，避免 CI 与本地工具链漂移。
+          go-version-file: go.mod
+          cache: true
+
+      # 代码风格：gofmt 有输出就说明有文件未格式化。
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l internal cmd main.go)
+          if [ -n "$unformatted" ]; then
+            echo "以下文件未格式化，请运行 gofmt -w："
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # 包范围说明见 Taskfile.yml 的 verify 任务：
+      #   * 根包只能用 go vet，`go build .` 在 Windows 上依赖 Wails 生成的 .syso
+      #   * `go build ./...` 一定失败，build/ios 里有不带 func main 的 package main
+      - name: vet
+        run: go vet ./internal/... ./cmd/... .
+
+      - name: build
+        run: go build ./internal/... ./cmd/...
+
+      - name: test
+        run: go test ./internal/... ./cmd/...
+
+      # 版本注入是构建流程的关键链路，单独跑一次带 -ldflags 的自检。
+      # 未注入时该用例会自动跳过，所以这里的失败一定是真的注入失败。
+      - name: verify version injection
+        run: |
+          LDFLAGS=$(go run ./cmd/versionldflags)
+          echo "ldflags: $LDFLAGS"
+          go test -ldflags "$LDFLAGS" ./internal/version -run TestInjectedBuild -v
+
+      # 验签公钥的注入同样单独自检：用一把临时生成的 Ed25519 密钥走完
+      # 「推导公钥 → 注入 → 客户端解析」全流程。这条链路一旦断了，
+      # 只有等到真实发布时才会发现，代价很高。
+      - name: verify update public key injection
+        run: |
+          KEY=$(mktemp)
+          openssl genpkey -algorithm ed25519 -out "$KEY"
+          PUB=$(openssl pkey -in "$KEY" -pubout -outform DER | tail -c 32 | base64 | tr -d '\n')
+          echo "derived public key: $PUB"
+          LDFLAGS=$(GOWS_UPDATE_PUBLIC_KEY="$PUB" go run ./cmd/versionldflags)
+          echo "ldflags: $LDFLAGS"
+          go test -ldflags "$LDFLAGS" ./internal/updater -run TestEmbeddedPublicKeyBuild -v

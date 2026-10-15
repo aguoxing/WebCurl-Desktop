@@ -1,0 +1,54 @@
+# Wails server 模式的部署镜像（distroless，多阶段构建）。
+#
+# 关键点：主程序通过 //go:embed all:frontend/dist 内嵌前端产物，因此镜像必须
+# 自己先把前端构建出来。若不做这一步，从干净检出构建出的镜像会嵌入空目录，
+# 服务启动后只返回空白页 —— 运行时再 COPY 一份 dist 也无济于事，因为 HTTP
+# 服务读取的是"编译进二进制的那份嵌入资源"，而不是磁盘上的目录。
+
+# --- 阶段 1：构建前端 ---
+FROM node:22-alpine AS frontend
+
+WORKDIR /app/frontend
+
+# 仓库未固定 packageManager，这里显式装上 pnpm 9（与 pnpm-lock.yaml 的
+# lockfileVersion 9.0 对齐）。先只拷贝清单文件，让依赖层能被缓存复用。
+RUN npm install -g pnpm@9
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# 其余前端源码（含已提交的 src/bindings，构建时需要它们）。
+COPY frontend/ ./
+RUN pnpm build
+
+# --- 阶段 2：构建 Go server 二进制 ---
+FROM golang:alpine AS builder
+
+WORKDIR /app
+
+RUN apk add --no-cache git
+
+COPY . .
+
+# 用阶段 1 的产物覆盖工作区里可能残留的旧 dist，确保嵌入的是本次构建结果。
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+
+# 去掉本地 replace 指令（用于生产构建）。
+RUN sed -i '/^replace/d' go.mod || true
+
+RUN go mod tidy
+
+RUN go build -tags server -ldflags="-s -w" -o server .
+
+# --- 阶段 3：运行 ---
+FROM gcr.io/distroless/static-debian12
+
+COPY --from=builder /app/server /server
+
+# 默认端口；同时被 server.port 与应用层的 ServerOptions 使用。
+EXPOSE 8080
+
+# 绑定全部网卡（容器外可访问所必需）。可用 -e WAILS_SERVER_HOST=... 在运行时覆盖，
+# 该环境变量的优先级高于配置文件里的 server.host。
+ENV WAILS_SERVER_HOST=0.0.0.0
+
+ENTRYPOINT ["/server"]

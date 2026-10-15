@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=WebCurl
+Comment=WebCurl Desktop - an API debugging and mock workbench
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/webcurl-desktop %u
+Terminal=false
+Type=Application
+Icon=webcurl-desktop
+Categories=Utility;
+StartupWMClass=webcurl-desktop
+
+ 

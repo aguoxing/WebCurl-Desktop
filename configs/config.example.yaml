@@ -1,0 +1,83 @@
+# Application configuration for webcurl-desktop
+# All keys are optional; missing ones fall back to sensible defaults.
+# Boolean fields use 1 (on) / 0 (off).
+#
+# Copy to config.yaml next to this file (or into the XDG config dir) and edit.
+# config.yaml is git-ignored on purpose: never commit real credentials.
+
+app:
+  name: "WebCurl"
+  description: "网页版 API 调试与 Mock 工具的桌面版"
+  # 只有在二进制未内嵌版本时才有意义（本地 go run / go test）。
+  # 正式构建的版本由 -ldflags -X 注入到 internal/version，改这一行不会
+  # 改变"当前版本"，更新检查用的是注入值。详见 docs/development.md。
+  version: "1.0.1"
+
+window:
+  title: "WebCurl"
+  url: "/"
+  background_colour: "#1B2636"
+  # 窗口能被拖到的最小尺寸（0 表示不设下限），默认取框架自身的默认窗口尺寸。
+  # 窗口打开时沿用框架默认大小，因此默认配置下"打开尺寸 == 拖动下限"，
+  # 也就不会出现"第一次拖拽反而把窗口撑大"的中间态。
+  min_width: 800
+  min_height: 600
+
+tray:
+  close_behaviour: "quit"     # "quit" | "minimize"
+  tooltip: "WebCurl"
+
+startup:
+  enabled: 0                  # 1 = register a login item
+
+update:
+  auto_check: 0               # check for updates on startup (0/1)
+  provider: "github"          # "" | "github" | "custom"
+  api_url: "aguoxing/webcurl-desktop"   # github: "owner/repo", custom: "https://..."
+  # Leave empty and provide the token through the environment instead:
+  #   GOWAILS_GITHUB_TOKEN=ghp_xxx   (wins over this key, never written to disk)
+  github_token: ""
+  # Ed25519 公钥，用于校验发布包签名。正式构建会用 --sign-key 把它推导出来并
+  # 通过 -ldflags 内嵌到二进制里（注入值优先于本项），因此这里通常留空。
+  # 只有"不重新构建二进制、由运维在配置文件里配自定义更新源"的场景才需要填。
+  # 一旦配置或内嵌了公钥，更新就必须带签名，缺失或验签失败都会中止安装。
+  # 格式：base64 的原始 32 字节公钥、64 位十六进制，或 PEM。
+  public_key: ""
+
+log:
+  level: "debug"
+  file: ""                    # empty = {exe_dir}/logs/app.log
+  wails_file: ""              # empty = share the main log file
+  max_size: 10
+  max_backups: 5
+  max_age: 30
+  compress: 1
+  console: 1
+
+# server 模式（`task build:server`，以 -tags server 构建的无界面 HTTP 服务）的监听参数。
+# 这一段只在 server 构建里生效；桌面构建不会读取它。
+# 容器部署时可用环境变量临时覆盖，其优先级高于此处：
+#   WAILS_SERVER_HOST=0.0.0.0  WAILS_SERVER_PORT=8080
+server:
+  host: "localhost"           # "0.0.0.0" to expose outside the host (containers)
+  port: 8080
+
+# 请求调试的默认参数：只决定"新建请求时勾选什么"，不会改写已保存的请求。
+request:
+  default_timeout_sec: 30     # 新建请求的默认超时（秒）；0 = 不设超时
+  default_retry_count: 0      # 新建请求的默认重试次数（不含首次尝试）
+  default_retry_delay_sec: 1  # 重试间隔（秒）
+  follow_redirect: 1          # 1 = 默认跟随 3XX
+  verify_ssl: 1               # 1 = 默认校验 TLS 证书（只在调试自签环境时才该关掉）
+  history_limit: 500          # 历史记录保留条数上限
+
+# 内置 Mock 引擎。它是唯一必须真实监听端口的能力——就是要让别的程序连得上，
+# 因此不随"桌面版不再内嵌 HTTP 服务"一起去掉。
+mock:
+  enabled: 1                  # 1 = 随应用启动引擎；0 = 只在控制台里手动启动
+  config_path: ""             # 空 = 数据目录下的 mock.json
+
+# 本地数据的存放位置（历史、接口集合、环境变量）。
+# 空 = 用户配置目录下的 webcurl-desktop/data，装到 Program Files 这类只读位置也可用。
+storage:
+  dir: ""

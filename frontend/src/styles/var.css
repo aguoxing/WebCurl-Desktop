@@ -1,0 +1,49 @@
+:root {
+  --app-bgc: #ffffff;
+
+  /* 应用外壳（应用栏 / 侧栏 / 状态栏）的底色与描边。
+     它们比内容区浅一档或深一档，让"窗口边框"与"内容"在视觉上分层——
+     这是桌面程序的常见处理，纯白铺满会让窗口显得没有骨架。 */
+  --chrome-bgc: #f5f6f8;
+  --chrome-border: #dcdfe6;
+
+  --text-color: #303133;
+  --text-color-secondary: #909399;
+
+  /* 等宽字体栈：地址、JSON、请求头这类内容必须等宽，否则数字对齐不了，
+     在长列表里会明显影响扫读。Consolas / Menlo 覆盖 Windows 与 macOS，
+     最后回落到 ui-monospace（新版 WebView 内置）。 */
+  --font-mono: consolas, menlo, monaco, 'Courier New', ui-monospace, sfmono-regular, monospace;
+
+  /* 滚动条滑块的取色。与 --text-color-secondary 同值、只加透明度：Element Plus 的
+     el-scrollbar 用的就是 --el-text-color-secondary 的 30% 做滑块、50% 做悬停态，
+     这样原生滚动条与 el-scrollbar 才是同一套外观（见 styles/scrollbar.scss）。
+     刻意写死 rgba 而不用 color-mix()——旧版 WKWebView 不支持该函数，
+     整条声明会失效，滑块会直接消失。 */
+  --scrollbar-thumb: rgba(144, 147, 153, 0.3);
+  --scrollbar-thumb-hover: rgba(144, 147, 153, 0.5);
+}
+
+.dark {
+  --app-bgc: #1d1e1f;
+  --chrome-bgc: #17181a;
+  --chrome-border: #3a3b3d;
+  --text-color: #e5eaf3;
+  --text-color-secondary: #a3a6ad;
+  --scrollbar-thumb: rgba(163, 166, 173, 0.3);
+  --scrollbar-thumb-hover: rgba(163, 166, 173, 0.5);
+}
+
+html,
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+:after,
+:before {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
