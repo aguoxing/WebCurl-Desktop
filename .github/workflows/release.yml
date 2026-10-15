@@ -110,16 +110,20 @@ jobs:
 
       # pnpm 必须在 setup-node 之前装好，后者要靠它做依赖缓存。
       #
-      # 版本刻意不在这里写死，而是由 frontend/package.json 的 packageManager 决定。
-      # 这里原来 pin 成 9，而 frontend/pnpm-workspace.yaml 用的是 pnpm 12 的配置
-      # 格式（allowBuilds / minimumReleaseAgeExclude），pnpm 9 解析它时找不到
-      # packages 字段，直接报错并中断构建：
-      #   ERROR packages field missing or empty
-      # action 的 package_json_file 默认指向仓库根的 package.json（本项目没有），
-      # 所以必须显式指向 frontend。
+      # 版本必须与 frontend/pnpm-lock.yaml 及本地开发环境一致。这里原来 pin 成 9，
+      # 而 frontend/pnpm-workspace.yaml 用的是 pnpm 12 的配置格式（allowBuilds /
+      # minimumReleaseAgeExclude），pnpm 9 解析它时找不到 packages 字段，直接报错
+      # 并中断构建：ERROR packages field missing or empty
+      #
+      # 也试过交给 frontend/package.json 的 packageManager 字段声明版本，但
+      # pnpm 12.5.1 会据此要求在 lockfile 里补一段 packageManagerDependencies，
+      # 而它写这段内容时会把 lockfile 变成两个文档的拼接（两个 lockfileVersion），
+      # 随后 --frozen-lockfile 直接失败：
+      #   ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE
+      # 所以版本只在这里声明一处，package.json 里刻意不放 packageManager。
       - uses: pnpm/action-setup@v6
         with:
-          package_json_file: frontend/package.json
+          version: "12.5.1"
 
       - uses: actions/setup-node@v4
         with:
