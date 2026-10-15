@@ -90,15 +90,36 @@ require() { command -v "$1" &>/dev/null || { echo "❌ $1 not found"; exit 1; };
 require wails3
 
 # Cross-platform zip and sha256 helpers.
+
+# 把 MSYS/Git Bash 的 /c/foo/bar 形式转成 Windows 的 C:\foo\bar。
+to_win_path() {
+    echo "$1" | sed 's|^/\([a-z]\)/|\1:/|' | sed 's|/|\\|g'
+}
+
+# do_zip <目标 zip> <文件>...
+# 所有文件都平铺在压缩包根目录下（不带外层目录）：更新助手解压后要直接看到负载，
+# 多一层目录会让它在定位主程序时找错地方。
 do_zip() {
-    local src="$1" dst="$2"
+    local dst="$1"; shift
+    if [ $# -eq 0 ]; then
+        echo "❌ do_zip: 没有要打包的文件"; exit 1
+    fi
+
+    local dir names=() f n
+    dir="$(cd "$(dirname "$1")" && pwd)"
+    for f in "$@"; do
+        names+=("$(basename "$f")")
+    done
+
     if command -v zip &>/dev/null; then
-        (cd "$(dirname "$src")" && zip -r "$dst" "$(basename "$src")")
+        (cd "$dir" && zip -q -r "$dst" "${names[@]}")
     elif command -v powershell &>/dev/null; then
-        local wsrc wdst
-        wsrc=$(echo "$src" | sed 's|^/\([a-z]\)/|\1:/|' | sed 's|/|\\|g')
-        wdst=$(echo "$dst" | sed 's|^/\([a-z]\)/|\1:/|' | sed 's|/|\\|g')
-        powershell -Command "Compress-Archive -Path '$wsrc' -DestinationPath '$wdst' -Force"
+        local wdst wpaths=""
+        wdst=$(to_win_path "$dst")
+        for n in "${names[@]}"; do
+            wpaths="${wpaths:+$wpaths,}'$(to_win_path "$dir")\\$n'"
+        done
+        powershell -Command "Compress-Archive -Path $wpaths -DestinationPath '$wdst' -Force"
     else
         echo "❌ zip or powershell required"; exit 1
     fi
@@ -266,13 +287,15 @@ for PLAT in "${PLATFORMS[@]}"; do
 
     # ── Release packaging ─────────────────────────────────────────────────────
     if [ "$RELEASE" = true ]; then
-        # The updater swaps a single file (target binary). Zip the bare exe at
-        # the root so the helper can directly rename it into place.
-        cd "$BIN_DIR"
+        # 两个文件都平铺在压缩包根目录下，助手才能直接 rename 到位。
+        #
+        # 助手（updater）必须一起打进去：绿色版解压后要自带它，否则应用内更新会在
+        # 交接那一步以 "update helper not found" 中止。带上它也**不会**导致
+        # 「替换一个正在运行的助手」失败 —— 主程序运行的是它自己复制到临时目录的
+        # 那份副本，安装目录里这一份并未被占用（见 internal/updater/apply.go）。
         ZIP_FILE="$RELEASE_DIR/${RELEASE_NAME}.zip"
         rm -f "$ZIP_FILE"
-        do_zip "$BIN_NAME" "$ZIP_FILE"
-        cd "$ROOT_DIR"
+        do_zip "$ZIP_FILE" "$BIN_DIR/$BIN_NAME" "$BIN_DIR/updater${EXE_EXT}"
 
         # Append to combined SHA256SUMS.
         (cd "$RELEASE_DIR" && do_sha256 "$(basename "$ZIP_FILE")") >> "$RELEASE_DIR/SHA256SUMS"

@@ -109,6 +109,14 @@ WebCurl Desktop 把 WebCurl 的 **HTTP 请求调试** 与 **Mock 服务** 两项
 应用会把发现的新版本下载、验签、校验摘要后，交由一个独立的助手程序在主进程退出后
 替换二进制并重启，因此更新过程里不会出现「自己覆盖自己」的失败。
 
+发布包（zip）里**自带**这个助手，解压即用；主程序会先把它复制到临时目录再运行，
+所以安装目录里那一份在替换阶段并未被占用，可以被新版本覆盖。
+
+检查更新优先走 GitHub REST API。匿名额度只有每小时 60 次、且按**出口 IP** 计算，
+共享出口（公司 NAT、机房代理）很容易被别人用光；一旦限流，会自动改走 `github.com`
+的公开页面与下载路径完成同一次检查，不再把 403 直接甩给用户。想提高额度可在配置里
+填 `github_token`。
+
 ---
 
 ## 🔨 从源码构建
@@ -394,7 +402,7 @@ webview。`binding` 是一层显式的契约：`service` 只写业务，`binding
 | 后端 | Go 1.26，标准库 `net/http` 自建请求引擎；`zerolog` + `lumberjack` 日志 |
 | 前端 | Vue 3 + TypeScript + Vite、Element Plus、Pinia、vue-router（hash）、vue-i18n |
 | Mock | Go 标准库 HTTP server + `coder/websocket` |
-| 更新 | GitHub Releases / 自定义 HTTP API，Ed25519 验签 |
+| 更新 | GitHub Releases（API，限流时回退公开页面）/ 自定义 HTTP API，Ed25519 验签 |
 
 第三方依赖刻意压到最低：请求引擎只用标准库（自己处理 multipart 与文件流），
 curl 解析在前端用几十行 tokenizer 完成，分栏容器也是自写的几十行组件 ——

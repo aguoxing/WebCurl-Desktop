@@ -97,8 +97,8 @@ Section
     # （internal/updater/apply.go 的 helperBinaryName），缺了就报
     # "update helper not found" 并中止更新。
     #
-    # 反过来，升级包里**不能**带它：替换一个正在运行的助手会失败，
-    # 所以 release 的 zip 只有主程序，助手只随安装包分发。
+    # 反过来，release 的 zip 也自带一份助手。带上它并不会造成「替换一个正在运行的
+    # 助手」失败 —— 主程序把助手复制到临时目录再运行，安装目录里这一份并未被占用。
     #
     # 路径写法与上面的 OutFile 一致，相对于本脚本所在目录。
     File "/oname=updater.exe" "..\..\..\bin\updater.exe"
