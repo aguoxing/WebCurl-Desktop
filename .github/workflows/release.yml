@@ -109,13 +109,22 @@ jobs:
           cache: true
 
       # pnpm 必须在 setup-node 之前装好，后者要靠它做依赖缓存。
-      - uses: pnpm/action-setup@v4
+      #
+      # 版本刻意不在这里写死，而是由 frontend/package.json 的 packageManager 决定。
+      # 这里原来 pin 成 9，而 frontend/pnpm-workspace.yaml 用的是 pnpm 12 的配置
+      # 格式（allowBuilds / minimumReleaseAgeExclude），pnpm 9 解析它时找不到
+      # packages 字段，直接报错并中断构建：
+      #   ERROR packages field missing or empty
+      # action 的 package_json_file 默认指向仓库根的 package.json（本项目没有），
+      # 所以必须显式指向 frontend。
+      - uses: pnpm/action-setup@v6
         with:
-          version: 9
+          package_json_file: frontend/package.json
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 与 pnpm 12 的要求及本地开发环境保持一致。
+          node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
