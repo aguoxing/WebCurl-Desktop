@@ -145,20 +145,36 @@ tasks:
       # Create the Microsoft WebView2 bootstrapper if it doesn't exist
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
       # 更新助手与主程序一起进安装目录，否则装完的应用一执行更新就在交接那一步失败。
-      # 它不进 release 的 zip（那里只放主程序，见 scripts/build.sh 的 --release）。
+      # release 的 zip 里也有它一份（见 scripts/build.sh 的 --release），两边保持一致。
       # 这里刻意不写成 deps 引用根 Taskfile 的 build:updater：被 include 的任务文件
       # 无法调用根命名空间的任务。
       - go build -C "{{.ROOT_DIR}}" -o "{{.ROOT_DIR}}/{{.BIN_DIR}}/updater.exe" ./cmd/updater
+      # project.nsi 与 wails_tools.nsh 必须保持纯 ASCII：makensis 在没有 BOM 时按系统
+      # 代码页（ACP）读脚本，任何一个非 ASCII 字节都会让整个打包中止，报
+      #     Bad text encoding: project.nsi:<行号>
+      # 且不指出是编码问题、只指行号，很容易误判成语法错误。中文说明请写在本文件里。
       - |
         {{if eq OS "windows"}}
-        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" project.nsi
+        "{{.MAKENSIS}}" {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" project.nsi
         {{else}}
-        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" project.nsi
+        "{{.MAKENSIS}}" {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" project.nsi
         {{end}}
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
       ARG_FLAG: '{{if eq .ARCH "amd64"}}AMD64{{else}}ARM64{{end}}'
       INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+      # NSIS 不在 PATH 里时用它覆盖（用正斜杠，cmd 与 sh 都认），例如：
+      #   wails3 task windows:package MAKENSIS="D:/NSIS/makensis.exe"
+      # 注意这只适用于本变量的值：.nsi 里 File 指令的路径只能用反斜杠，
+      # NSIS 把正斜杠当选项前缀，File "E:/path/app.exe" 会被报成 no files found。
+      MAKENSIS: '{{.MAKENSIS | default "makensis"}}'
+    env:
+      # 助手必须与主程序同架构 —— 给 ARM64 的应用配一个 amd64 的助手，
+      # 它在那台机器上根本起不来，更新还是失败。
+      # 本任务里的其它命令也会带上这两条：「生成 WebView2 bootstrapper」正好也需要它。
+      # 注意主程序的构建由 windows:build:native 负责，它自己也设了这两条（{{.ARCH}}）。
+      GOOS: windows
+      GOARCH: '{{.ARCH}}'
 
   create:msix:package:
     summary: Creates an MSIX package

@@ -93,14 +93,22 @@ Section
     
     !insertmacro wails.files
 
-    # 更新助手必须与主程序**同目录**：应用内更新在交接那一步会去那里找它
-    # （internal/updater/apply.go 的 helperBinaryName），缺了就报
-    # "update helper not found" 并中止更新。
+    # The update helper must sit in the SAME directory as the main binary: the
+    # in-app updater looks for it there when handing over
+    # (internal/updater/apply.go, helperBinaryName). Without it the update stops
+    # at that step with "update helper not found".
     #
-    # 反过来，release 的 zip 也自带一份助手。带上它并不会造成「替换一个正在运行的
-    # 助手」失败 —— 主程序把助手复制到临时目录再运行，安装目录里这一份并未被占用。
+    # Shipping it here is safe even though it is the helper that performs the
+    # swap: the app copies the helper into a temp directory before running it, so
+    # the copy in the install directory is not a running image and can be
+    # replaced by the one carried in the update package.
     #
-    # 路径写法与上面的 OutFile 一致，相对于本脚本所在目录。
+    # KEEP THIS FILE ASCII-ONLY. makensis reads the script in the system code page
+    # (no BOM -> ACP) and aborts the whole build on any non-ASCII byte:
+    #     Bad text encoding: project.nsi:<line>
+    # Comments in other languages belong in build/windows/Taskfile.yml instead.
+    #
+    # Path is relative to this script, matching OutFile above.
     File "/oname=updater.exe" "..\..\..\bin\updater.exe"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
