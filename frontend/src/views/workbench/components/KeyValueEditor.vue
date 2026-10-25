@@ -1,7 +1,27 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, Plus } from '@element-plus/icons-vue'
 import type { KV } from '@/api/types'
+
+/**
+ * 名称列的联想候选。
+ *
+ * 由调用方决定是否提供：请求头有公认的名字清单，参数名和表单字段名则没有，
+ * 那种场景下这些面板应该保持成一个普通输入框。
+ */
+interface NameSuggestion {
+  name: string
+  /** 选中后填入的推荐值；为空表示只补名称。 */
+  value?: string
+  /** 列表右侧的说明，帮用户在相似的名字之间分辨。 */
+  note?: string
+}
+
+/** 联想列表里的一项：ElAutocomplete 只认 value 字段。 */
+interface SuggestionItem {
+  value: string
+  hint: string
+}
 
 /**
  * 通用的键值对编辑器，Params / Headers / Cookies / 表单字段共用。
@@ -20,12 +40,15 @@ const props = withDefaults(
     showEnable?: boolean
     /** 单行最小值宽度，见模板里的用途。 */
     minWidth?: string
+    /** 名称列的联想候选；不传则名称列是普通输入框。 */
+    nameSuggestions?: NameSuggestion[]
   }>(),
   {
     namePlaceholder: '键',
     valuePlaceholder: '值',
     showEnable: true,
-    minWidth: '0'
+    minWidth: '0',
+    nameSuggestions: () => []
   }
 )
 
@@ -47,6 +70,29 @@ function update(patch: KV[]) {
 function updateCell(index: number, field: 'name' | 'value', value: string) {
   const next = rows.value.map((row, i) => (i === index ? { ...row, [field]: value } : row))
   update(next)
+}
+
+/**
+ * 从联想列表里选中一个名称。
+ *
+ * 值列还是空的时候顺手填上推荐值：选了 Content-Type 之后最想做的就是
+ * 敲 application/json，而这里也是"写了却没生效"最常发生的地方。
+ */
+function pickName(index: number, name: string) {
+  const row = rows.value[index]
+  if (!row) return
+  const preset = (props.nameSuggestions ?? []).find((item) => item.name === name)
+  const value = row.value || preset?.value || ''
+  update(rows.value.map((r, i) => (i === index ? { ...r, name, value } : r)))
+}
+
+/** ElAutocomplete 的候选来源：按当前输入过滤，空输入时给出全部。 */
+function fetchNames(query: string, callback: (items: SuggestionItem[]) => void) {
+  const keyword = query.trim().toLowerCase()
+  const items = (props.nameSuggestions ?? [])
+    .filter((item) => !keyword || item.name.toLowerCase().includes(keyword))
+    .map((item) => ({ value: item.name, hint: item.value || item.note || '' }))
+  callback(items)
 }
 
 function toggle(index: number, enabled: boolean) {
@@ -107,7 +153,29 @@ defineExpose({ importFromText })
         :model-value="row.enabled"
         @update:model-value="(v: any) => toggle(index, Boolean(v))"
       />
+      <ElAutocomplete
+        v-if="nameSuggestions.length"
+        class="kv-input"
+        :model-value="row.name"
+        :placeholder="namePlaceholder"
+        :fetch-suggestions="fetchNames"
+        :debounce="120"
+        trigger-on-focus
+        hide-loading
+        value-key="value"
+        @update:model-value="(v: string) => updateCell(index, 'name', v)"
+        @select="(item: SuggestionItem) => pickName(index, item.value)"
+      >
+        <template #default="{ item }">
+          <span class="kv-suggest-name">{{ item.value }}</span>
+          <span v-if="item.hint" class="kv-suggest-hint">{{ item.hint }}</span>
+        </template>
+        <template #suffix>
+          <ElIcon class="kv-suggest-caret"><ArrowDown /></ElIcon>
+        </template>
+      </ElAutocomplete>
       <ElInput
+        v-else
         class="kv-input"
         :model-value="row.name"
         :placeholder="namePlaceholder"
@@ -176,6 +244,27 @@ defineExpose({ importFromText })
 .kv-remove {
   flex: 0 0 auto;
   color: var(--el-text-color-placeholder);
+}
+
+/* 名称列变成联想框后根节点是 .el-autocomplete，内部 el-input 自己撑满，
+   这里只把箭头压暗到和裸输入框一致的视觉重量。 */
+.kv-suggest-caret {
+  color: var(--el-text-color-placeholder);
+}
+
+.kv-suggest-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.kv-suggest-hint {
+  margin-left: 10px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kv-actions {
