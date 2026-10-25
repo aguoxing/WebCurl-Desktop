@@ -294,21 +294,50 @@ func (a *App) fillFileMenu(menu *application.Menu, text menuText) {
 
 // fillEditMenu 填充编辑菜单。
 //
-// 这不是"顺手加上"的装饰：webview 里的剪贴板快捷键由菜单角色分发，
-// 缺少 Edit 菜单时 macOS 上的 Cmd+C / Cmd+V 根本不工作。
+// 这不是"顺手加上"的装饰：macOS 上的 Cmd+C / Cmd+V 由菜单快捷键分发到
+// webview 的响应链，缺少 Edit 菜单时这些快捷键根本不工作。
 func (a *App) fillEditMenu(menu *application.Menu, text menuText) {
-	addRole(menu, application.Undo, text.undo)
-	addRole(menu, application.Redo, text.redo)
+	addEditRole(menu, application.Undo, text.undo)
+	addEditRole(menu, application.Redo, text.redo)
 	menu.AddSeparator()
-	addRole(menu, application.Cut, text.cut)
-	addRole(menu, application.Copy, text.copy)
-	addRole(menu, application.Paste, text.paste)
+	addEditRole(menu, application.Cut, text.cut)
+	addEditRole(menu, application.Copy, text.copy)
+	addEditRole(menu, application.Paste, text.paste)
 	if runtime.GOOS == "darwin" {
-		addRole(menu, application.PasteAndMatchStyle, text.pastePlain)
+		addEditRole(menu, application.PasteAndMatchStyle, text.pastePlain)
 	}
 	menu.AddSeparator()
-	addRole(menu, application.Delete, text.deleteItem)
-	addRole(menu, application.SelectAll, text.selectAll)
+	addEditRole(menu, application.Delete, text.deleteItem)
+	addEditRole(menu, application.SelectAll, text.selectAll)
+}
+
+// addEditRole 添加一个编辑菜单角色项：macOS 保留角色自带的快捷键，
+// 其它平台把快捷键摘掉，只把提示留在标签里。
+//
+// 非 darwin 平台必须摘：Wails 的剪贴板角色在那里不是原生动作，而是让
+// webview 再执行一次 execCommand（粘贴 = insertText，删除 = delete，
+// 撤销 = undo）。菜单角色一挂上快捷键就会注册成窗口级绑定，在
+// WebView2 的 AcceleratorKeyPressed 里被调用；而 go-webview2 在回调返回
+// true 之后又把 Handled 置回 false，于是 webview 的原生处理照旧发生 ——
+// 一次 Ctrl+V 粘出两份内容、一次退格删掉两个字符、一次 Ctrl+Z 退两步。
+// 摘掉绑定后快捷键完全交还 webview，菜单项点击仍然可用。
+func addEditRole(menu *application.Menu, role application.Role, label string) {
+	addRole(menu, role, label)
+
+	if runtime.GOOS == "darwin" {
+		return
+	}
+	item := menu.FindByRole(role)
+	if item == nil {
+		return
+	}
+	hint := item.GetAccelerator()
+	item.RemoveAccelerator()
+	// 标签里的 \t 之后是快捷键提示：原生菜单据此右对齐显示，
+	// Wails 自己也是这么拼的，摘掉绑定后不能把这行提示一起丢掉。
+	if hint != "" && label != "" {
+		item.SetLabel(label + "\t" + hint)
+	}
 }
 
 // fillViewMenu 填充视图菜单。

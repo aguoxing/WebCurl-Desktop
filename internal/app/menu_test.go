@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -100,6 +101,44 @@ func TestEventNamesMatchFrontend(t *testing.T) {
 	for _, name := range []string{eventNavigate, eventLanguage} {
 		if !strings.Contains(content, `"`+name+`"`) && !strings.Contains(content, `'`+name+`'`) {
 			t.Errorf("event %q is not declared in %s", name, path)
+		}
+	}
+}
+
+// TestEditRolesDropAcceleratorOnNonDarwin 守住"非 darwin 不注册编辑快捷键"这条约定。
+//
+// 编辑器里的重复粘贴没法用快照测试发现，但不挂快捷键这件事可以直接断言：
+// 一旦编辑角色重新带上快捷键，窗口级绑定会把粘贴、删除、撤销各执行两遍
+// （原因见 addEditRole 的说明）。
+func TestEditRolesDropAcceleratorOnNonDarwin(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS 的 Cmd+C / Cmd+V 依赖角色自带的快捷键分发")
+	}
+
+	roles := []application.Role{
+		application.Undo,
+		application.Redo,
+		application.Cut,
+		application.Copy,
+		application.Paste,
+		application.Delete,
+		application.SelectAll,
+	}
+
+	for _, role := range roles {
+		menu := application.NewMenu()
+		addEditRole(menu, role, "标签")
+
+		item := menu.FindByRole(role)
+		if item == nil {
+			t.Fatalf("role %v 没有被加入编辑菜单", role)
+		}
+		if got := item.GetAccelerator(); got != "" {
+			t.Errorf("role %v 仍然带着快捷键 %q，对应动作会被执行两次", role, got)
+		}
+		// 摘掉绑定不能连提示一起丢：菜单项右侧仍应显示 Ctrl+V 之类。
+		if !strings.HasPrefix(item.Label(), "标签\t") {
+			t.Errorf("role %v 的快捷键提示丢失，标签为 %q", role, item.Label())
 		}
 	}
 }
