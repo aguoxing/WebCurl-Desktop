@@ -1,7 +1,7 @@
 <template>
   <div class="about-container">
     <div class="about-header">
-      <img src="/vite.svg" alt="logo" class="about-logo" />
+      <img src="/appicon.svg" :alt="appName" class="about-logo" />
       <h2>{{ appName }}</h2>
       <p class="about-version">Version {{ version }}</p>
     </div>
