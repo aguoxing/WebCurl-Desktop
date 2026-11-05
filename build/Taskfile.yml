@@ -195,18 +195,26 @@ tasks:
     cmds:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true -d frontend/src/bindings{{if eq .OBFUSCATED "true"}} -obfuscated{{end}}
 
+  # 只用 appicon.png 生成 ico/icns，刻意不传 -iconcomposerinput。
+  #
+  # 那条路会用 appicon.icon（Wails 模板自带的矢量 W）生成 darwin/Assets.car，
+  # 而 Info.plist 里一旦有 CFBundleIconName，macOS 就优先读 Assets.car ——
+  # 于是换了 appicon.png 图标在 macOS 上毫无变化，Windows/Linux 却变了。
+  # 这个失败是静默的，所以把参数去掉、Assets.car 不入库。
+  #
+  # 想用 macOS 26 的分层/深色图标，需在 macOS 上用 Icon Composer 重做
+  # build/appicon.icon，再要求 wails3 传入 -iconcomposerinput/-macassetdir。
   generate:icons:
-    summary: Generates Windows `.ico` and Mac `.icns` from an image; on macOS, `-iconcomposerinput appicon.icon -macassetdir darwin` also produces `Assets.car` from a `.icon` file (skipped on other platforms).
+    summary: Generates Windows `.ico` and Mac `.icns` from appicon.png.
     run: once
     dir: build
     sources:
       - "appicon.png"
-      - "appicon.icon"
     generates:
       - "darwin/icons.icns"
       - "windows/icon.ico"
     cmds:
-      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
+      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico
 
   dev:frontend:
     summary: Runs the frontend in development mode
