@@ -14,7 +14,7 @@ info:
   description: "WebCurl Desktop - an API debugging and mock workbench" # The application description
   copyright: "(c) 2026 aguoxing" # Copyright text
   comments: "https://github.com/aguoxing/webcurl-desktop" # Comments
-  version: "1.0.3.0" # The application version
+  version: "1.0.4.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"
