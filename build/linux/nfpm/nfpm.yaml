@@ -6,14 +6,15 @@
 name: "webcurl-desktop"
 arch: ${GOARCH}
 platform: "linux"
-version: "1.0.1.0"
+version: "1.0.3.0"
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "WebCurl Desktop - an API debugging and mock workbench"
 vendor: "aguoxing"
-# 注意：本文件由 `wails3 task common:update:build-assets` 重写，homepage 会被重置成
-# 模板里的 https://wails.io，跑完那个任务后要回来把这一行改回项目地址。
+# homepage 不来自 build/config.yml，每次 `wails3 task common:update:build-assets`
+# 都会把它重置成 https://wails.io —— 包括上面这行注释。当前发布产物是 zip，
+# 只有手工打 deb/rpm 时才用到这里，届时记得改回来。
 homepage: "https://github.com/aguoxing/webcurl-desktop"
 license: "MIT"
 release: "1"

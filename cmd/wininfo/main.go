@@ -51,8 +51,12 @@ const (
 	fieldFileVersion    = "FileVersion"
 	fieldProductVersion = "ProductVersion"
 
-	// defaultLanguage 是没有 info 块时新建的语言键。Windows 资源用四位十六进制
-	// 表示语言 ID，"0000" 是语言中性——wails3 生成的模板用的就是它。
+	// defaultLanguage 是 info 里一个语言块都没有时新建的键。Windows 资源用
+	// 四位十六进制表示语言 ID，"0000" 是语言中性。
+	//
+	// 注意：不能靠这个值去「找到」模板里的语言块 —— Wails 3.1.0 生成的是
+	// "0409"（美式英语），更早的模板才是 "0000"。patch 因此遍历全部语言块，
+	// 而不是按下标去取某一个。
 	defaultLanguage = "0000"
 )
 
