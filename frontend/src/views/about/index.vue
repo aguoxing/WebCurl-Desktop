@@ -149,6 +149,9 @@ onMounted(() => {
   .about-logo {
     width: 64px;
     height: 64px;
+    // 图标源是 4:3 的横向图形，写死 64×64 会被压成正方形。contain 让它在盒子里
+    // 等比缩放并居中留白；换成正方形素材后这一行也不需要改。
+    object-fit: contain;
     margin-bottom: 12px;
   }
 
