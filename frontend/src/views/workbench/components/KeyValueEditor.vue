@@ -153,27 +153,30 @@ defineExpose({ importFromText })
         :model-value="row.enabled"
         @update:model-value="(v: any) => toggle(index, Boolean(v))"
       />
-      <ElAutocomplete
-        v-if="nameSuggestions.length"
-        class="kv-input"
-        :model-value="row.name"
-        :placeholder="namePlaceholder"
-        :fetch-suggestions="fetchNames"
-        :debounce="120"
-        trigger-on-focus
-        hide-loading
-        value-key="value"
-        @update:model-value="(v: string) => updateCell(index, 'name', v)"
-        @select="(item: SuggestionItem) => pickName(index, item.value)"
-      >
-        <template #default="{ item }">
-          <span class="kv-suggest-name">{{ item.value }}</span>
-          <span v-if="item.hint" class="kv-suggest-hint">{{ item.hint }}</span>
-        </template>
-        <template #suffix>
-          <ElIcon class="kv-suggest-caret"><ArrowDown /></ElIcon>
-        </template>
-      </ElAutocomplete>
+      <!-- 联想框必须由真实节点承载 flex：ElAutocomplete 的根节点自带
+           width: var(--el-input-width)（100%），而 class 会落到内层 el-input 上，
+           不套这一层的话整列会以 100% 宽度吃掉整行，把值输入框挤到 0 宽。 -->
+      <div v-if="nameSuggestions.length" class="kv-input">
+        <ElAutocomplete
+          :model-value="row.name"
+          :placeholder="namePlaceholder"
+          :fetch-suggestions="fetchNames"
+          :debounce="120"
+          trigger-on-focus
+          hide-loading
+          value-key="value"
+          @update:model-value="(v: string) => updateCell(index, 'name', v)"
+          @select="(item: SuggestionItem) => pickName(index, item.value)"
+        >
+          <template #default="{ item }">
+            <span class="kv-suggest-name">{{ item.value }}</span>
+            <span v-if="item.hint" class="kv-suggest-hint">{{ item.hint }}</span>
+          </template>
+          <template #suffix>
+            <ElIcon class="kv-suggest-caret"><ArrowDown /></ElIcon>
+          </template>
+        </ElAutocomplete>
+      </div>
       <ElInput
         v-else
         class="kv-input"
@@ -223,6 +226,12 @@ defineExpose({ importFromText })
 .kv-input {
   flex: 1 1 0;
   min-width: 0;
+
+  /* 联想框的根节点是 inline-block + width:100%，包一层后仍要显式撑满，
+     否则它按内容宽度收缩，右侧的下拉箭头会飘到框中间。 */
+  :deep(.el-autocomplete) {
+    width: 100%;
+  }
 
   :deep(.el-input__wrapper) {
     box-shadow: none;
