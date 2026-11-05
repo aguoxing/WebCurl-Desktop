@@ -141,12 +141,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 
-      # 版本与 go.mod 中声明的 Wails 对齐，避免 CLI 与库版本漂移导致生成的
-      # 绑定/资源与代码不匹配。
+      # 版本从 go.mod 读取，而不是在这里写死：CLI 与库版本不一致时 wails3 会直接
+      # 拒绝构建，而「升级了 go.mod 却忘了改这行」是很容易发生的遗漏 —— 本文件
+      # 上一次升级就踩过，注释写着要对齐、值却是硬编码的。
       - name: 安装 wails3 与 task
         shell: bash
         run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28
+          wails_ver="$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+          echo "安装 wails3 ${wails_ver}"
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${wails_ver}"
           go install github.com/go-task/task/v3/cmd/task@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
