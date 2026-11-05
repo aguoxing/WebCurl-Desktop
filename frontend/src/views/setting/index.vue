@@ -34,7 +34,7 @@ const storage = ref({ dir: '' })
 
 const allConfig = ref({
   startup: { enabled: 0 },
-  update: { autoCheck: 0, provider: '', apiUrl: '' },
+  update: { autoCheck: 0, provider: '', apiUrl: '', proxy: '' },
   tray: { closeBehaviour: 'minimize' }
 })
 
@@ -307,7 +307,38 @@ onMounted(async () => {
             <span class="row-label">
               {{ allConfig.update.provider === 'github' ? '仓库（owner/repo）' : '更新接口地址' }}
             </span>
-            <ElInput v-model="allConfig.update.apiUrl" class="wide" @change="onUpdateChange" />
+            <div class="row-field">
+              <ElInput
+                v-model="allConfig.update.apiUrl"
+                class="wide"
+                :placeholder="
+                  allConfig.update.provider === 'github'
+                    ? 'owner/repo'
+                    : 'https://api.example.com/update'
+                "
+                @change="onUpdateChange"
+              />
+              <!-- 直接粘地址栏里的仓库地址是常见做法，后端会归一成 owner/repo，
+                   这行说明是为了让人不必猜这里该怎么写。 -->
+              <span v-if="allConfig.update.provider === 'github'" class="hint">
+                也接受 https://github.com/owner/repo 形式
+              </span>
+            </div>
+          </div>
+          <ElDivider />
+          <div class="row">
+            <span class="row-label">更新代理</span>
+            <div class="row-field">
+              <ElInput
+                v-model="allConfig.update.proxy"
+                class="wide"
+                placeholder="http://127.0.0.1:7890"
+                @change="onUpdateChange"
+              />
+              <!-- Go 不读 Windows 的「系统代理」开关，所以这里得能显式填一条，
+                   否则开着代理客户端也会直连 GitHub 附件服务器然后超时。 -->
+              <span class="hint">留空则使用 HTTP_PROXY / HTTPS_PROXY 环境变量</span>
+            </div>
           </div>
         </template>
         <ElDivider />
@@ -379,6 +410,15 @@ onMounted(async () => {
 .wide {
   width: 420px;
   max-width: 60vw;
+}
+
+/* 带说明的字段：说明挂在输入框下方并与它右对齐，标签仍留在原来那一列。 */
+.row-field {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
 }
 
 /* 保存按钮靠右而不是铺满：设置页的每一块都是"改完就存"，

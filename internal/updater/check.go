@@ -41,7 +41,8 @@ type apiResponse struct {
 //
 // 服务端报告无更新时返回 (nil, nil)，最常见的形式是 HTTP 204/304。
 // 服务端可以忽略 platform/arch 参数，客户端只把它们当作附带信息。
-func Check(apiURL string, currentVersion string) (*UpdateInfo, error) {
+// proxy 的含义见 newHTTPClient。
+func Check(apiURL, currentVersion, proxy string) (*UpdateInfo, error) {
 	if apiURL == "" {
 		return nil, fmt.Errorf("update API URL not configured")
 	}
@@ -57,7 +58,10 @@ func Check(apiURL string, currentVersion string) (*UpdateInfo, error) {
 	endpoint.RawQuery = q.Encode()
 
 	// 设置超时上限：更新服务无响应时不能让应用一直挂住。
-	client := &http.Client{Timeout: 15 * time.Second}
+	client, err := newHTTPClient(15*time.Second, proxy)
+	if err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequest(http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("build update request: %w", err)

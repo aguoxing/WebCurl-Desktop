@@ -54,7 +54,7 @@ const (
 //
 // SHA256 摘要的策略与签名不同（能拿到就强制校验、拿不到才告警并继续），
 // 这是刻意的：摘要只防传输损坏，签名才防伪造，两者的容忍度不应相同。
-func Apply(info *UpdateInfo, publicKey string) error {
+func Apply(info *UpdateInfo, publicKey, proxy string) error {
 	if info == nil || !info.HasUpdate {
 		return fmt.Errorf("no update available")
 	}
@@ -91,7 +91,7 @@ func Apply(info *UpdateInfo, publicKey string) error {
 
 	// 1. 下载。
 	zipPath := filepath.Join(workDir, "update.zip")
-	if err := downloadFile(info.URL, zipPath, info.Size); err != nil {
+	if err := downloadFile(info.URL, zipPath, info.Size, proxy); err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 
@@ -287,17 +287,20 @@ func helperBinaryName() string {
 
 // downloadFile 把 url 流式写入 destPath。当响应头 Content-Length 或更新源
 // 声明的预期大小存在时，两者都会被校验。
-func downloadFile(url, destPath string, expectedSize int64) error {
+func downloadFile(url, destPath string, expectedSize int64, proxy string) error {
 	out, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
+	client, err := newHTTPClient(5*time.Minute, proxy)
 	if err != nil {
 		return err
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return transportError("download", err)
 	}
 	defer resp.Body.Close()
 

@@ -324,3 +324,21 @@ func TestSaveDoesNotPersistBuildVersion(t *testing.T) {
 		t.Fatalf("the file version was not preserved:\n%s", data)
 	}
 }
+
+// TestMergeFromAppliesProxy 守住「代理是用户可编辑字段」这一点。
+//
+// 漏掉拷贝不会报错，只会表现为设置页填了代理却从不生效 —— 这类静默失效最难查。
+// 同时验证清空能生效：用户可能就是要退回「跟随环境变量」。
+func TestMergeFromAppliesProxy(t *testing.T) {
+	stored := UpdateConfig{Proxy: "http://old:1"}
+
+	stored.MergeFrom(UpdateConfig{Proxy: "http://127.0.0.1:7890"})
+	if stored.Proxy != "http://127.0.0.1:7890" {
+		t.Fatalf("proxy = %q，期望被覆盖为 http://127.0.0.1:7890", stored.Proxy)
+	}
+
+	stored.MergeFrom(UpdateConfig{Proxy: ""})
+	if stored.Proxy != "" {
+		t.Fatalf("proxy = %q，清空应当生效", stored.Proxy)
+	}
+}

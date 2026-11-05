@@ -128,7 +128,7 @@ func TestApplyFailsWhenHelperIsMissing(t *testing.T) {
 
 	before := workDirsInTemp(t)
 
-	err := Apply(info, "")
+	err := Apply(info, "", "")
 	if err == nil {
 		t.Fatal("expected Apply to fail when no update helper is available")
 	}
@@ -180,7 +180,7 @@ func TestApplyLeavesWorkDirToTheHelper(t *testing.T) {
 
 	before := workDirsInTemp(t)
 
-	err = Apply(info, "")
+	err = Apply(info, "", "")
 	if !errors.Is(err, ErrRestartRequired) {
 		t.Fatalf("got %v, want ErrRestartRequired", err)
 	}

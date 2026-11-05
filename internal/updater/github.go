@@ -3,11 +3,14 @@ package updater
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -38,14 +41,96 @@ var (
 	githubWebBase = "https://github.com"
 )
 
+// normalizeRepo 把用户填写的仓库地址归一成 "owner/repo"。
+//
+// 配置项的说明写的是 owner/repo，但直接把浏览器地址栏里的
+// https://github.com/owner/repo.git 粘进来是再自然不过的操作。那样拼出来的
+// 请求路径会是 /repos/https://github.com/... ，GitHub 回 404，而 404 的响应体
+// 只有一句 "Not Found" —— 从错误信息里根本看不出是格式问题。这里把常见写法
+// 都收进来，让两种输入都可用。
+//
+// 超出两段的路径（/tree/main、/releases 等）只取前两段，粘贴到具体页面也能用。
+func normalizeRepo(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", fmt.Errorf("github repository not configured")
+	}
+
+	// SSH 克隆地址：git@github.com:owner/repo.git
+	if rest, ok := strings.CutPrefix(s, "git@github.com:"); ok {
+		s = rest
+	} else {
+		for _, prefix := range []string{"https://", "http://", "ssh://", "git://"} {
+			s = strings.TrimPrefix(s, prefix)
+		}
+		for _, host := range []string{"www.github.com/", "github.com/", "git@github.com/"} {
+			if rest, ok := strings.CutPrefix(s, host); ok {
+				s = rest
+				break
+			}
+		}
+	}
+
+	s = strings.TrimSuffix(strings.TrimSuffix(strings.Trim(s, "/"), ".git"), "/")
+
+	parts := strings.Split(s, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", fmt.Errorf("github repository %q is not in owner/repo form", raw)
+	}
+	return parts[0] + "/" + parts[1], nil
+}
+
+// transportError 把 net/http 的错误压成「发生了什么 + 哪个主机」，并丢掉完整 URL。
+//
+// url.Error 会把请求地址原样带进 Error()。GitHub 的附件地址是
+// release-assets.githubusercontent.com 上一串几百字符的签名 URL，整段塞进设置页
+// 的提示框里既读不懂，也把签名串摊到了界面和日志里。真正有用的是主机名和原因：
+// 超时、解析失败、连接被重置分别指向不同的处置办法。
+func transportError(op string, err error) error {
+	var uerr *url.Error
+	if !errors.As(err, &uerr) {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	reason := uerr.Err.Error()
+	switch {
+	case errors.Is(uerr.Err, context.DeadlineExceeded),
+		strings.Contains(reason, "Client.Timeout exceeded"):
+		// 附件主机在国内经常整段不可达，超时是最常见的形态，所以额外给出路。
+		reason = "连接超时（GitHub 的附件服务器常被阻断，可配置系统代理后重试）"
+	case strings.Contains(reason, "no such host"):
+		reason = "域名解析失败"
+	case strings.Contains(reason, "connection refused"):
+		reason = "连接被拒绝"
+	case strings.Contains(reason, "connection reset"):
+		reason = "连接被重置"
+	}
+
+	host := ""
+	if u, perr := url.Parse(uerr.URL); perr == nil {
+		host = u.Host
+	}
+	if host == "" {
+		return fmt.Errorf("%s: %s", op, reason)
+	}
+	return fmt.Errorf("%s: %s（%s）", op, reason, host)
+}
+
 // CheckGitHub 查询 GitHub Releases 是否有新版本，repo 形如 "owner/repo"。
 //
+// repo 也接受完整仓库地址（粘贴浏览器地址栏是常见做法），由 normalizeRepo 归一。
 // 当 release 里带有 SHA256SUMS 附件时，会从中读出所选附件的摘要；
 // 否则 Checksum 保持为空，记录一条警告后按"不校验"继续（见 Apply）。
-// 公开仓库的 token 可为空。
-func CheckGitHub(repo, token, currentVersion string) (*UpdateInfo, error) {
-	if repo == "" {
-		return nil, fmt.Errorf("github repository not configured")
+// 公开仓库的 token 可为空，proxy 见 newHTTPClient。
+func CheckGitHub(repo, token, currentVersion, proxy string) (*UpdateInfo, error) {
+	repo, err := normalizeRepo(repo)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := newHTTPClient(15*time.Second, proxy)
+	if err != nil {
+		return nil, err
 	}
 
 	endpoint := fmt.Sprintf("%s/repos/%s/releases/latest", githubAPIBase, repo)
@@ -60,10 +145,9 @@ func CheckGitHub(repo, token, currentVersion string) (*UpdateInfo, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("github request: %w", err)
+		return nil, transportError("github request", err)
 	}
 	defer resp.Body.Close()
 
@@ -77,7 +161,13 @@ func CheckGitHub(repo, token, currentVersion string) (*UpdateInfo, error) {
 			logger.Warn().
 				Str("repo", repo).
 				Msg("updater: github API rate limit reached, falling back to the public release pages")
-			return checkGitHubViaWeb(repo, currentVersion)
+			return checkGitHubViaWeb(repo, currentVersion, proxy)
+		}
+		// 404 有两种常见成因，都该直接说出来：仓库名写错，或该仓库还没发过
+		// Release —— 后者 /releases/latest 同样是 404，而不是返回空列表。
+		// 原始响应体在这里没有信息量（只有一句 Not Found），不如换成成因。
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("github repository %s not found, or it has no published release yet", repo)
 		}
 		return nil, fmt.Errorf("github API HTTP %d: %s", resp.StatusCode, text)
 	}
@@ -232,13 +322,9 @@ func findSignatureAsset(assets []githubAsset, assetName string) string {
 // Signature 字段承载的是文本。这里做一个归一化：附件本身已经是 hex/base64 文本就
 // 原样保留，否则按裸二进制转成 base64。这样后续只需一套解码逻辑。
 func fetchSignature(client *http.Client, url string) (string, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	resp, err := getMetadata(client, "signature request", url)
 	if err != nil {
-		return "", fmt.Errorf("build signature request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("signature request: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
@@ -268,13 +354,9 @@ func fetchSignature(client *http.Client, url string) (string, error) {
 
 // fetchChecksum 下载清单并取出 assetName 对应的摘要。
 func fetchChecksum(client *http.Client, url, assetName string) (string, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	resp, err := getMetadata(client, "checksum request", url)
 	if err != nil {
-		return "", fmt.Errorf("build checksum request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("checksum request: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
@@ -339,8 +421,11 @@ func isRateLimited(resp *http.Response, body string) bool {
 }
 
 // checkGitHubViaWeb 走公开页面与下载路径完成一次检查。
-func checkGitHubViaWeb(repo, currentVersion string) (*UpdateInfo, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+func checkGitHubViaWeb(repo, currentVersion, proxy string) (*UpdateInfo, error) {
+	client, err := newHTTPClient(15*time.Second, proxy)
+	if err != nil {
+		return nil, err
+	}
 
 	tag, err := latestReleaseTag(client, repo)
 	if err != nil {
@@ -415,7 +500,7 @@ func latestReleaseTag(client *http.Client, repo string) (string, error) {
 
 	resp, err := noRedirect.Get(endpoint)
 	if err != nil {
-		return "", fmt.Errorf("github release page: %w", err)
+		return "", transportError("github release page", err)
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
@@ -493,7 +578,7 @@ func urlExists(client *http.Client, url string) (bool, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("request %s: %w", url, err)
+		return false, transportError("signature probe", err)
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
@@ -510,13 +595,9 @@ func urlExists(client *http.Client, url string) (bool, error) {
 
 // fetchChecksumEntries 下载清单并返回「文件名 → 摘要」。
 func fetchChecksumEntries(client *http.Client, url string) (map[string]string, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	resp, err := getMetadata(client, "checksum request", url)
 	if err != nil {
-		return nil, fmt.Errorf("build checksum request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("checksum request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 

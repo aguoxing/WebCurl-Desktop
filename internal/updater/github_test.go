@@ -52,7 +52,7 @@ func TestCheckGitHubFallsBackToWebWhenRateLimited(t *testing.T) {
 		}
 	})
 
-	info, err := CheckGitHub(repo, "", "1.0.0")
+	info, err := CheckGitHub(repo, "", "1.0.0", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestCheckGitHubKeepsNonRateLimitErrors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"message":"Bad credentials"}`))
 	})
 
-	_, err := CheckGitHub("owner/repo", "expired-token", "1.0.0")
+	_, err := CheckGitHub("owner/repo", "expired-token", "1.0.0", "")
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -110,7 +110,7 @@ func TestCheckGitHubWebPathRespectsVersionGate(t *testing.T) {
 		}
 	})
 
-	info, err := CheckGitHub(repo, "", "1.0.0")
+	info, err := CheckGitHub(repo, "", "1.0.0", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -191,6 +191,49 @@ func TestParseChecksumEntries(t *testing.T) {
 	for _, want := range []string{"app.zip", "app2.zip", "app3.zip"} {
 		if entries[want] != "sha256:"+digest {
 			t.Errorf("entry %q: got %q, want sha256:%s", want, entries[want], digest)
+		}
+	}
+}
+
+// TestNormalizeRepo 覆盖用户实际会填的几种仓库写法。
+//
+// 这条用例来自一次真实的 404：设置页的说明是 owner/repo，但把地址栏里的
+// https://github.com/owner/repo.git 直接粘进去同样自然，而拼出来的
+// /repos/https://github.com/... 只会换来一句 "Not Found"，看不出是格式问题。
+func TestNormalizeRepo(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"owner/repo", "owner/repo"},
+		{"  owner/repo  ", "owner/repo"},
+		{"https://github.com/owner/repo", "owner/repo"},
+		{"https://github.com/owner/repo.git", "owner/repo"},
+		{"https://github.com/owner/repo/", "owner/repo"},
+		{"http://www.github.com/owner/repo.git", "owner/repo"},
+		{"github.com/owner/repo", "owner/repo"},
+		{"git@github.com:owner/repo.git", "owner/repo"},
+		{"ssh://git@github.com/owner/repo.git", "owner/repo"},
+		{"https://github.com/owner/repo/tree/main/internal/updater", "owner/repo"},
+		{"OWNER/Repo", "OWNER/Repo"},
+	}
+
+	for _, c := range cases {
+		got, err := normalizeRepo(c.in)
+		if err != nil {
+			t.Errorf("normalizeRepo(%q) 返回错误: %v", c.in, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("normalizeRepo(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestNormalizeRepoRejectsIncomplete(t *testing.T) {
+	for _, in := range []string{"", "   ", "owner", "https://github.com/", "https://github.com/owner"} {
+		if got, err := normalizeRepo(in); err == nil {
+			t.Errorf("normalizeRepo(%q) = %q，应当报错", in, got)
 		}
 	}
 }

@@ -111,6 +111,14 @@ type UpdateConfig struct {
 	APIURL      string `yaml:"api_url"      json:"apiUrl"`      // github 填 "owner/repo"，custom 填完整地址
 	GitHubToken string `yaml:"github_token" json:"githubToken"` // github 可选 PAT
 
+	// Proxy 是更新请求使用的 HTTP 代理，例如 "http://127.0.0.1:7890"。
+	//
+	// 留空表示沿用 HTTP_PROXY / HTTPS_PROXY 环境变量。提供这一项是因为 Go 不会
+	// 读取 Windows 的「系统代理」设置：本地代理客户端开着、浏览器也正常，更新却
+	// 直连 release-assets.githubusercontent.com 超时。它只作用于更新相关请求，
+	// 不影响请求调试功能（那里走的是用户自己设的代理）。
+	Proxy string `yaml:"proxy" json:"proxy"`
+
 	// PublicKey 是用于校验发布包签名的 Ed25519 公钥（base64/hex 原始 32 字节，或 PEM）。
 	//
 	// 它通常不需要在这里配：正式构建会把公钥通过 -ldflags 注入到
@@ -139,6 +147,7 @@ func (u *UpdateConfig) MergeFrom(src UpdateConfig) {
 	u.AutoCheck = src.AutoCheck
 	u.Provider = src.Provider
 	u.APIURL = src.APIURL
+	u.Proxy = src.Proxy
 	// 公钥不是机密，原样透传即可（前端拿到的也没有被脱敏）。
 	u.PublicKey = src.PublicKey
 }

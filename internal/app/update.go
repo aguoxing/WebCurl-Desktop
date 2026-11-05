@@ -24,14 +24,14 @@ func (a *App) checkForUpdates() error {
 
 	switch uc.Provider {
 	case config.UpdateProviderGitHub:
-		info, err = updater.CheckGitHub(uc.APIURL, uc.GitHubToken, a.cfg.App.Version)
+		info, err = updater.CheckGitHub(uc.APIURL, uc.GitHubToken, a.cfg.App.Version, uc.Proxy)
 
 	case config.UpdateProviderCustom:
 		// 自定义源没配地址等同于未启用，静默跳过而不是报错。
 		if uc.APIURL == "" {
 			return nil
 		}
-		info, err = updater.Check(uc.APIURL, a.cfg.App.Version)
+		info, err = updater.Check(uc.APIURL, a.cfg.App.Version, uc.Proxy)
 
 	default:
 		return nil
@@ -41,7 +41,7 @@ func (a *App) checkForUpdates() error {
 		return err
 	}
 
-	err = updater.Apply(info, updater.TrustedPublicKey(uc.PublicKey))
+	err = updater.Apply(info, updater.TrustedPublicKey(uc.PublicKey), uc.Proxy)
 	if errors.Is(err, updater.ErrRestartRequired) {
 		logger.Info().
 			Str("version", info.Version).
